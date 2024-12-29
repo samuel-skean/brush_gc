@@ -60,6 +60,7 @@ unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
         }
         // FIXME: Audit this, I don't like making this temporary mutable
         // reference! Maybe replace with is_some?
+        // Uh, this isn't advancing along the list at all. Why aren't we getting stuck in a loop?
         if let Some(ref mut new_current) = *current.as_ptr() {
             // SAFETY: Depends on JustNonNull taking advantage of the Null-Pointer
             // Optimization, where 0 is equivalent to null.
