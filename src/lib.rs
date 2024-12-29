@@ -2,7 +2,7 @@ use just_non_null::JustNonNull;
 
 mod just_non_null;
 
-enum Object {
+pub enum Object {
     Integer(i64),
     Pair(*mut TrackedObject, *mut TrackedObject),
 }
@@ -14,7 +14,7 @@ pub struct TrackedObject {
 }
 
 impl TrackedObject {
-    fn new(head: &mut Option<JustNonNull<TrackedObject>>, object: Object) -> JustNonNull<TrackedObject> {
+    pub fn new(head: &mut Option<JustNonNull<TrackedObject>>, object: Object) -> JustNonNull<TrackedObject> {
         let next = *head;
         *head = JustNonNull::new(Box::into_raw(Box::new(Self {
             marked: false,
@@ -46,26 +46,29 @@ unsafe fn mark_all(stack: &Vec<*mut TrackedObject>) {
     }
 }
 
-unsafe fn sweep(head: *mut Option<JustNonNull<TrackedObject>>) {
+unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
     let mut current = head;
-    while let Some(object) = *current {
-        let boxed_object;
+    while let Some(object) = *current.as_ptr() {
         if !(*object.as_ptr()).marked {
             // SAFETY: No one else is looking at this Box because it's from
-            // somewhere else.
-            boxed_object = Box::from_raw(object.as_ptr());
-            *current = boxed_object.next;
+            // somewhere else. FIXME: What am I talking about?
+            let boxed_object = Box::from_raw(object.as_ptr());
+            *current.as_ptr() = boxed_object.next;
         } else {
-            // Clear marking for remaining objects.
+            // Clear marking for remaining objects, so they must be re-marked next time.
             (*object.as_ptr()).marked = false;
         }
-        // There's something wrong with this in the case of skipping one of the
-        // objects. I think it's not as uniform of a thing as I might want.
-        current = &raw mut (*object.as_ptr()).next;
+        // FIXME: Audit this, I don't like making this temporary mutable
+        // reference! Maybe replace with is_some?
+        if let Some(ref mut new_current) = *current.as_ptr() {
+            // SAFETY: Depends on JustNonNull taking advantage of the Null-Pointer
+            // Optimization, where 0 is equivalent to null.
+            current = JustNonNull::from_mut(std::mem::transmute(new_current));
+        }
     }
 }
 
-pub fn collect_garbage(stack: &Vec<*mut TrackedObject>, head: *mut Option<JustNonNull<TrackedObject>>) {
+pub fn collect_garbage(stack: &Vec<*mut TrackedObject>, head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
     unsafe {
         mark_all(stack);
         sweep(head);
@@ -82,7 +85,7 @@ mod tests {
         let _x = TrackedObject::new(&mut head, Object::Integer(21));
         let y = TrackedObject::new(&mut head, Object::Integer(42));
         let stack = vec![y.as_ptr()];
-        collect_garbage(&stack, &raw mut head);
+        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
         unsafe { drop(Box::from_raw(y.as_ptr())); }
     }
 }

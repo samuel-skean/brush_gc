@@ -2,6 +2,7 @@
 use std::{marker::PhantomData, ops::{Deref, DerefMut}, ptr::NonNull};
 
 /// NonNull but invariant.
+#[repr(transparent)]
 pub struct JustNonNull<T> {
     inner: NonNull<T>,
     _marker: PhantomData<*mut T>,
@@ -25,6 +26,10 @@ impl<T> JustNonNull<T> {
                 _marker: PhantomData,
             }
         })
+    }
+
+    pub fn from_mut(r: &mut T) -> Self {
+        Self { inner: NonNull::new(r).expect("References should never be null"), _marker: PhantomData }
     }
 }
 
