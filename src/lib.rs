@@ -61,9 +61,7 @@ unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
         // FIXME: Audit this, I don't like making this temporary mutable
         // reference! Maybe replace with is_some?
         if let Some(ref mut new_current) = *current.as_ptr() {
-            // SAFETY: Depends on JustNonNull taking advantage of the Null-Pointer
-            // Optimization, where 0 is equivalent to null.
-            current = JustNonNull::from_mut(std::mem::transmute(&raw mut (*new_current.as_ptr()).next));
+            current = JustNonNull::from_mut(&mut (*new_current.as_ptr()).next);
         }
     }
 }
