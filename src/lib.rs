@@ -25,7 +25,7 @@ impl TrackedObject {
     }
 }
 
-unsafe fn mark_all(stack: &Vec<*mut TrackedObject>) {
+unsafe fn mark_all(stack: &[*mut TrackedObject]) {
     unsafe fn mark(object: *mut TrackedObject) {
         if object.is_null() {
             return;
@@ -44,8 +44,8 @@ unsafe fn mark_all(stack: &Vec<*mut TrackedObject>) {
             }
         }
     }
-    for object in stack {
-        mark(*object);
+    for object in stack.iter().copied() {
+        mark(object);
     }
 }
 
@@ -69,7 +69,7 @@ unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
     }
 }
 
-pub fn collect_garbage(stack: &Vec<*mut TrackedObject>, head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
+pub fn collect_garbage(stack: &[*mut TrackedObject], head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
     unsafe {
         mark_all(stack);
         sweep(head);
