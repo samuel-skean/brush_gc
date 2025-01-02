@@ -1,6 +1,6 @@
-use just_non_null::JustNonNull;
+use invariant_non_null::InvariantNonNull;
 
-mod just_non_null;
+pub mod invariant_non_null;
 
 pub enum Object {
     Integer(i64),
@@ -10,13 +10,13 @@ pub enum Object {
 pub struct TrackedObject {
     marked: bool,
     object: Object,
-    next: Option<JustNonNull<TrackedObject>>,
+    next: Option<InvariantNonNull<TrackedObject>>,
 }
 
 impl TrackedObject {
-    pub fn new(head: &mut Option<JustNonNull<TrackedObject>>, object: Object) -> JustNonNull<TrackedObject> {
+    pub fn new(head: &mut Option<InvariantNonNull<TrackedObject>>, object: Object) -> InvariantNonNull<TrackedObject> {
         let next = *head;
-        *head = JustNonNull::new(Box::into_raw(Box::new(Self {
+        *head = InvariantNonNull::new(Box::into_raw(Box::new(Self {
             marked: false,
             object,
             next,
@@ -49,7 +49,7 @@ unsafe fn mark_all(stack: &[*mut TrackedObject]) {
     }
 }
 
-unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
+unsafe fn sweep(head: InvariantNonNull<Option<InvariantNonNull<TrackedObject>>>) {
     let mut current = head;
     while let Some(object) = *current.as_ptr() {
         if !(*object.as_ptr()).marked {
@@ -64,12 +64,12 @@ unsafe fn sweep(head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
             // SAFETY: I mean, we just created this pointer to a valid thing,
             // it's gonna be valid. This is just to avoid a temporary mutable
             // reference, and all the assertions that makes about memory.
-            current = JustNonNull::new(&raw mut (*object.as_ptr()).next).unwrap_unchecked();
+            current = InvariantNonNull::new(&raw mut (*object.as_ptr()).next).unwrap_unchecked();
         }
     }
 }
 
-pub fn collect_garbage(stack: &[*mut TrackedObject], head: JustNonNull<Option<JustNonNull<TrackedObject>>>) {
+pub fn collect_garbage(stack: &[*mut TrackedObject], head: InvariantNonNull<Option<InvariantNonNull<TrackedObject>>>) {
     unsafe {
         mark_all(stack);
         sweep(head);
@@ -88,7 +88,7 @@ mod tests {
         let _x = TrackedObject::new(&mut head, Integer(21));
         let y = TrackedObject::new(&mut head, Integer(42));
         let stack = vec![y.as_ptr()];
-        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
+        collect_garbage(&stack, InvariantNonNull::from_mut(&mut head));
         unsafe { drop(Box::from_raw(y.as_ptr())); }
     }
 
@@ -98,7 +98,7 @@ mod tests {
         let x = TrackedObject::new(&mut head, Integer(21));
         let y = TrackedObject::new(&mut head, Integer(42));
         let stack = vec![x.as_ptr(), y.as_ptr()];
-        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
+        collect_garbage(&stack, InvariantNonNull::from_mut(&mut head));
         unsafe { 
             drop(Box::from_raw(y.as_ptr()));
             drop(Box::from_raw(x.as_ptr()));
@@ -112,7 +112,7 @@ mod tests {
         let y = TrackedObject::new(&mut head, Integer(42));
         let pair = TrackedObject::new(&mut head, Pair(x.as_ptr(), y.as_ptr()));
         let stack = vec![pair.as_ptr(), y.as_ptr()];
-        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
+        collect_garbage(&stack, InvariantNonNull::from_mut(&mut head));
 
         // Everything was reachable.
         unsafe {
@@ -133,7 +133,7 @@ mod tests {
         let p4 = TrackedObject::new(&mut head, Pair(p3.as_ptr(), y.as_ptr()));
 
         let stack = vec![p4.as_ptr()];
-        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
+        collect_garbage(&stack, InvariantNonNull::from_mut(&mut head));
 
         // Everything was reachable.
         unsafe {
@@ -163,7 +163,7 @@ mod tests {
         }
 
         let stack = vec![x.as_ptr()];
-        collect_garbage(&stack, JustNonNull::from_mut(&mut head));
+        collect_garbage(&stack, InvariantNonNull::from_mut(&mut head));
 
         // Only the integer we could directly reach stayed alive.
 
